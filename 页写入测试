@@ -1,0 +1,73 @@
+#include <Wire.h>
+
+// 24C128的I2C地址
+#define EEPROM_ADDRESS 0x50
+
+// 自定义SDA和SCL引脚
+#define SDA_PIN D3  // GPIO3作为SDA
+#define SCL_PIN D1  // GPIO1作为SCL
+
+// 24C128的页大小
+#define EEPROM_PAGE_SIZE 64
+
+void setup() {
+  Wire.begin(SDA_PIN, SCL_PIN); // 使用指定的引脚初始化I2C通信
+  Serial.begin(9600); // 初始化串口通信
+
+  // 写入中文数据到24C128
+  Serial.println("正在写入数据到EEPROM...");
+  String dataToWrite = "你好，欢迎使用24C128";
+  writeEEPROMPage(0x00, dataToWrite.c_str(), dataToWrite.length());
+
+  // 等待足够的时间以确保写入完成
+  delay(100);
+
+  // 读取数据从24C128
+  Serial.println("正在从EEPROM读取数据...");
+  String dataRead = readEEPROM(0x00, dataToWrite.length());
+
+  // 验证写入和读取的数据是否一致
+  if (dataRead == dataToWrite) {
+    Serial.println("数据写入和读取成功，并且一致。");
+  } else {
+    Serial.println("数据不一致，写入或读取失败。");
+  }
+}
+
+void loop() {
+  // 这里不需要循环代码
+}
+
+void writeEEPROMPage(uint16_t address, const char* data, uint8_t length) {
+  uint8_t bytesWritten = 0;
+  while (bytesWritten < length) {
+    uint8_t bytesToWrite = (length - bytesWritten > EEPROM_PAGE_SIZE) ? EEPROM_PAGE_SIZE : (length - bytesWritten);
+    Wire.beginTransmission(EEPROM_ADDRESS);
+    Wire.write((int)(address + bytesWritten) >> 8); // 写入高8位地址
+    Wire.write((int)(address + bytesWritten) & 0xFF); // 写入低8位地址
+    for (uint8_t i = 0; i < bytesToWrite; i++) {
+      Wire.write(data[bytesWritten + i]);
+      delay(5); // 写入一个字节后等待5毫秒
+    }
+    byte status = Wire.endTransmission();
+    if (status != 0) {
+      Serial.println("I2C写入错误");
+      break;
+    }
+    bytesWritten += bytesToWrite;
+  }
+}
+
+String readEEPROM(uint16_t address, uint8_t length) {
+  String data = "";
+  Wire.beginTransmission(EEPROM_ADDRESS);
+  Wire.write((int)(address >> 8)); // 写入高8位地址
+  Wire.write((int)(address & 0xFF)); // 写入低8位地址
+  Wire.endTransmission();
+  Wire.requestFrom(EEPROM_ADDRESS, length);
+  while (Wire.available()) {
+    char c = Wire.read();
+    data += c;
+  }
+  return data;
+}
