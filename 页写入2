@@ -1,0 +1,108 @@
+#include <Wire.h>
+
+#define EEPROM_ADDRESS 0x50 // EEPROM的I2C地址
+#define EEPROM_PAGE_SIZE 64 // AT24C128的每页大小为64字节
+
+// 向EEPROM页写入数据的函数
+void writeEEPROMPage(int address, const char* data, uint8_t length) {
+  Wire.beginTransmission(EEPROM_ADDRESS);
+  Wire.write((uint8_t)(address >> 8)); // 发送高字节地址
+  Wire.write((uint8_t)(address & 0xFF)); // 发送低字节地址
+
+  uint8_t page_offset = address % EEPROM_PAGE_SIZE; // 计算当前地址在页内的位置
+  uint8_t bytes_to_write = (length > EEPROM_PAGE_SIZE - page_offset) ? EEPROM_PAGE_SIZE - page_offset : length; // 计算本次可以写入的字节数
+
+  for (uint16_t i = 0; i < bytes_to_write; i++) {
+    Wire.write(data[i]); // 发送数据
+  }
+
+  Wire.endTransmission(); // 结束传输
+
+  // 如果还有数据需要写入，递归调用自身来写入剩余的数据
+  if (length > bytes_to_write) {
+    writeEEPROMPage(address + bytes_to_write, data + bytes_to_write, length - bytes_to_write);
+  }
+}
+
+// 从EEPROM读取数据的函数
+String readEEPROM(int address, int length) {
+  String data = "";
+  Wire.beginTransmission(EEPROM_ADDRESS);
+  Wire.write((uint8_t)(address >> 8));
+  Wire.write((uint8_t)(address & 0xFF));
+  Wire.endTransmission(false);
+
+  Wire.requestFrom(EEPROM_ADDRESS, length);
+  while (Wire.available()) {
+    char c = Wire.read();
+    data += c;
+  }
+  return data;
+}
+
+// 从EEPROM读取定时设置数据的函数
+void readTimingSettingsFromEEPROM() {
+  // 读取定时1的设置
+  String data = readEEPROM(0, 12);
+  if (data.length() == 12) {
+    startHourForGroup1 = data.substring(0, 2).toInt();
+    startMinuteForGroup1 = data.substring(2, 4).toInt();
+    endHourForGroup1 = data.substring(4, 6).toInt();
+    endMinuteForGroup1 = data.substring(6, 8).toInt();
+    isTimedGroup1 = data.substring(8, 9) == "1";
+  }
+
+  // 读取定时2的设置
+  data = readEEPROM(12, 12);
+  if (data.length() == 12) {
+    startHourForGroup2 = data.substring(0, 2).toInt();
+    startMinuteForGroup2 = data.substring(2, 4).toInt();
+    endHourForGroup2 = data.substring(4, 6).toInt();
+    endMinuteForGroup2 = data.substring(6, 8).toInt();
+    isTimedGroup2 = data.substring(8, 9) == "1";
+  }
+}
+
+// 将定时设置数据写入EEPROM的函数
+void writeTimingSettingsToEEPROM() {
+  // 构建定时1的数据字符串
+  String data = String(startHourForGroup1) + String(startMinuteForGroup1) +
+                String(endHourForGroup1) + String(endMinuteForGroup1) +
+                (isTimedGroup1 ? "1" : "0");
+
+  // 写入定时1的数据到EEPROM
+  writeEEPROMPage(0, data.c_str(), data.length());
+
+  // 构建定时2的数据字符串
+  data = String(startHourForGroup2) + String(startMinuteForGroup2) +
+         String(endHourForGroup2) + String(endMinuteForGroup2) +
+         (isTimedGroup2 ? "1" : "0");
+
+  // 写入定时2的数据到EEPROM
+  writeEEPROMPage(12, data.c_str(), data.length());
+}
+
+// 全局变量定义
+int startHourForGroup1 = 0;
+int startMinuteForGroup1 = 0;
+int endHourForGroup1 = 0;
+int endMinuteForGroup1 = 0;
+bool isTimedGroup1 = false;
+
+int startHourForGroup2 = 0;
+int startMinuteForGroup2 = 0;
+int endHourForGroup2 = 0;
+int endMinuteForGroup2 = 0;
+bool isTimedGroup2 = false;
+
+void setup() {
+  // 初始化I2C通信
+  Wire.begin();
+
+  // 读取EEPROM中的定时设置
+  readTimingSettingsFromEEPROM();
+}
+
+void loop() {
+  // 这里不需要做任何事情
+}
