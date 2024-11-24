@@ -4,8 +4,8 @@
 #define EEPROM_ADDRESS 0x50
 
 // 自定义SDA和SCL引脚
-#define SDA_PIN D3  // GPIO3作为SDA
-#define SCL_PIN D1  // GPIO1作为SCL
+#define SDA_PIN D1  // GPIO3作为SDA
+#define SCL_PIN D2  // GPIO1作为SCL
 
 // 24C128的页大小
 #define EEPROM_PAGE_SIZE 64
