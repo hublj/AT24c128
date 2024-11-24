@@ -1,3 +1,7 @@
+
+#define EEPROM_PAGE_SIZE 64//全局声明
+
+
 // 向EEPROM写入一个字节数据（添加延迟）
 void writeEEPROM(int address, const char* data) {
     Wire.beginTransmission(EEPROM_ADDRESS);
