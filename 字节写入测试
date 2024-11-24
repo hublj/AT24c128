@@ -4,8 +4,8 @@
 #define EEPROM_ADDRESS 0x50
 
 // 自定义SDA和SCL引脚，只能D+数字，不能只填写引脚数字
-#define SDA_PIN D9 // GPIO3作为SDA
-#define SCL_PIN D10 // GPIO1作为SCL，注意这里应该是GPIO1，而不是GPIO1的引脚编号
+#define SDA_PIN D1 // GPIO3作为SDA
+#define SCL_PIN D2 // GPIO1作为SCL，注意这里应该是GPIO1，而不是GPIO1的引脚编号
 
 void setup() {
   Wire.begin(SDA_PIN, SCL_PIN, 100000); // 使用指定的引脚初始化I2C通信，并设置频率为100kHz，10k~100kHZ范围
