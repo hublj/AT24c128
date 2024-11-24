@@ -1,0 +1,120 @@
+// 向EEPROM写入一个字节数据（添加延迟）
+void writeEEPROM(int address, const char* data) {
+    Wire.beginTransmission(EEPROM_ADDRESS);
+    Wire.write((int)(address >> 8));
+    Wire.write((int)(address & 0xFF));
+    for (uint16_t i = 0; i < strlen(data); i++) {
+        Wire.write(data[i]);
+        delayMicroseconds(5000); // 每字节写入后延迟5毫秒
+    }
+    Wire.endTransmission();
+}
+
+// 从EEPROM读取数据（添加延迟）
+String readEEPROM(int address, int length) {
+    String data = "";
+    Wire.beginTransmission(EEPROM_ADDRESS);
+    Wire.write((int)(address >> 8));
+    Wire.write((int)(address & 0xFF));
+    Wire.endTransmission(false);
+    Wire.requestFrom(EEPROM_ADDRESS, length);
+    while (Wire.available()) {
+        char c = Wire.read();
+        data += c;
+        delayMicroseconds(5000); // 每字节读取后延迟5毫秒
+    }
+    return data;
+}
+
+// 将定时设置数据写入EEPROM（使用页写入）
+void writeTimingSettingsToEEPROM() {
+    // 构建定时1的数据字符串
+    String data = String(startHourForGroup1, DEC) + String(startMinuteForGroup1, DEC) + String(endHourForGroup1, DEC) + String(endMinuteForGroup1, DEC) + (isTimedGroup1? "1" : "0");
+
+    // 写入定时1的数据到EEPROM（假设页大小为64字节）
+    byte dataArray[EEPROM_PAGE_SIZE];
+    for (int i = 0; i < data.length(); i++) {
+        dataArray[i] = data[i];
+    }
+    pageWriteToEEPROM(0, dataArray, data.length());
+
+    // 构建定时2的数据字符串
+    data = String(startHourForGroup2, DEC) + String(startMinuteForGroup2, DEC) + String(endHourForGroup2, DEC) + String(endMinuteForGroup2, DEC) + (isTimedGroup2? "1" : "0");
+
+    // 写入定时2的数据到EEPROM
+    for (int i = 0; i < data.length(); i++) {
+        dataArray[i] = data[i];
+    }
+    pageWriteToEEPROM(12, dataArray, data.length());
+}
+
+// 从EEPROM读取定时设置数据（根据页读取方式调整）
+void readTimingSettingsFromEEPROM() {
+    // 读取定时1的设置（假设页大小为64字节）
+    byte dataArray[EEPROM_PAGE_SIZE];
+    readPageFromEEPROM(0, dataArray, 12);
+    String data = "";
+    for (int i = 0; i < 12; i++) {
+        data += (char)dataArray[i];
+    }
+    if (data.length() == 12) {
+        startHourForGroup1 = data.substring(0, 2).toInt();
+        startMinuteForGroup1 = data.substring(2, 4).toInt();
+        endHourForGroup1 = data.substring(4, 6).toInt();
+        endMinuteForGroup1 = data.substring(6, 8).toInt();
+        isTimedGroup1 = data.substring(8, 9) == "1";
+    }
+
+    // 读取定时2的设置
+    readPageFromEEPROM(12, dataArray, 12);
+    data = "";
+    for (int i = 0; i < 12; i++) {
+        data += (char)dataArray[i];
+    }
+    if (data.length() == 12) {
+        startHourForGroup2 = data.substring(0, 2).toInt();
+        startMinuteForGroup2 = data.substring(2, 4).toInt();
+        endHourForGroup2 = data.substring(4, 6).toInt();
+        endMinuteForGroup2 = data.substring(6, 8).toInt();
+        isTimedGroup2 = data.substring(8, 9) == "1";
+    }
+}
+
+// 页读取函数（假设页大小为64字节）
+void readPageFromEEPROM(int startAddress, byte* data, int numBytes) {
+    Wire.beginTransmission(EEPROM_ADDRESS);
+    Wire.write((int)(startAddress >> 8));
+    Wire.write((int)(startAddress & 0xFF));
+    Wire.endTransmission(false);
+    Wire.requestFrom(EEPROM_ADDRESS, numBytes);
+    int i = 0;
+    while (Wire.available() && i < numBytes) {
+        data[i++] = Wire.read();
+        delayMicroseconds(5000); // 每字节读取后延迟5毫秒
+    }
+}
+
+// 页写入函数（假设页大小为64字节）
+void pageWriteToEEPROM(int startAddress, byte* data, int numBytes) {
+    int currentAddress = startAddress;
+    int bytesWritten = 0;
+
+    while (bytesWritten < numBytes) {
+        Wire.beginTransmission(EEPROM_ADDRESS);
+        Wire.write((int)(currentAddress >> 8));
+        Wire.write((int)(currentAddress & 0xFF));
+
+        for (int i = 0; i < min(numBytes - bytesWritten, EEPROM_PAGE_SIZE); i++) {
+            Wire.write(data[bytesWritten + i]);
+        }
+
+        Wire.endTransmission();
+
+        for (int i = 0; i < min(numBytes - bytesWritten, EEPROM_PAGE_SIZE); i++) {
+            delayMicroseconds(5000); // 每字节写入后延迟5毫秒
+        }
+
+        currentAddress += min(numBytes - bytesWritten, EEPROM_PAGE_SIZE);
+        bytesWritten += min(numBytes - bytesWritten, EEPROM_PAGE_SIZE);
+    }
+}
