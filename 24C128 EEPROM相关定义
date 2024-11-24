@@ -1,0 +1,3 @@
+// 24C128 EEPROM相关定义
+#define EEPROM_ADDRESS 0x50
+#define EEPROM_PAGE_SIZE 64//在字节写入场景里，这个全局变量写与不写都可以，都可以实现正常读写
