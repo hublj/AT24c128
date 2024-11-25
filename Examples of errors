@@ -1,0 +1,124 @@
+#include <Wire.h>
+
+// 24C128 EEPROM相关定义
+#define EEPROM_ADDRESS 0x50
+#define EEPROM_PAGE_SIZE 64
+
+// 存储定时设置相关的全局变量
+int startHourForGroup1 = 0;
+int startMinuteForGroup1 = 0;
+int endHourForGroup1 = 0;
+int endMinuteForGroup1 = 0;
+bool isTimedGroup1 = false;
+
+int startHourForGroup2 = 0;
+int startMinuteForGroup2 = 0;
+int endHourForGroup2 = 0;
+int endMinuteForGroup2 = 0;
+bool isTimedGroup2 = false;
+
+// 向EEPROM写入一个字节数据（添加延迟）
+void writeEEPROM(int address, const char* data) {
+    Wire.beginTransmission(EEPROM_ADDRESS);
+    Wire.write((int)(address >> 8));
+    Wire.write((int)(address & 0xFF));
+    for (uint16_t i = 0; i < strlen(data); i++) {
+        Wire.write(data[i]);
+        delayMicroseconds(5000); // 每字节写入后延迟5毫秒
+    }
+    Wire.endTransmission();
+}
+
+// 从EEPROM读取数据（添加延迟）
+String readEEPROM(int address, int length) {
+    String data = "";
+    Wire.beginTransmission(EEPROM_ADDRESS);
+    Wire.write((int)(address >> 8));
+    Wire.write((int)(address & 0xFF));
+    Wire.endTransmission(false);
+    Wire.requestFrom(EEPROM_ADDRESS, length);
+    while (Wire.available()) {
+        char c = Wire.read();
+        data += c;
+        delayMicroseconds(5000); // 每字节读取后延迟5毫秒
+    }
+    return data;
+}
+
+// 将定时设置数据写入EEPROM（简化的写入逻辑）
+void writeTimingSettingsToEEPROM() {
+    // 构建定时1的数据字符串，格式化为固定长度（假设总长度为10字节，可按需调整）
+    char data1[10];
+    sprintf(data1, "%02d%02d%02d%02d%c", startHourForGroup1, startMinuteForGroup1, endHourForGroup1, endMinuteForGroup1, isTimedGroup1? '1' : '0');
+    writeEEPROM(0, data1);
+
+    // 构建定时2的数据字符串，同样格式化
+    char data2[10];
+    sprintf(data2, "%02d%02d%02d%02d%c", startHourForGroup2, startMinuteForGroup2, endHourForGroup2, endMinuteForGroup2, isTimedGroup2? '1' : '0');
+    writeEEPROM(10, data2);
+
+    Serial.println("定时设置数据已写入存储芯片");
+}
+
+// 从EEPROM读取定时设置数据（简化的读取逻辑）
+void readTimingSettingsFromEEPROM() {
+    // 读取定时1的数据
+    String data1 = readEEPROM(0, 10);
+    if (data1.length() == 10) {
+        // 解析定时1的数据
+        startHourForGroup1 = data1.substring(0, 2).toInt();
+        startMinuteForGroup1 = data1.substring(2, 4).toInt();
+        endHourForGroup1 = data1.substring(4, 6).toInt();
+        endMinuteForGroup1 = data1.substring(6, 8).toInt();
+        isTimedGroup1 = data1.substring(8, 9) == "1";
+    }
+
+    // 读取定时2的数据
+    String data2 = readEEPROM(10, 10);
+    if (data2.length() == 10) {
+        // 解析定时2的数据
+        startHourForGroup2 = data2.substring(0, 2).toInt();
+        startMinuteForGroup2 = data2.substring(2, 4).toInt();
+        endHourForGroup2 = data2.substring(4, 6).toInt();
+        endMinuteForGroup2 = data2.substring(6, 8).toInt();
+        isTimedGroup2 = data2.substring(8, 9) == "1";
+    }
+}
+
+void setup() {
+    Wire.begin();  // 初始化I2C总线
+    Serial.begin(9600);  // 初始化串口通信，波特率9600
+
+    // 在这里可以根据实际需求设置定时1和定时2的数据，以下为示例设置
+    startHourForGroup1 = 10;
+    startMinuteForGroup1 = 30;
+    endHourForGroup1 = 12;
+    endMinuteForGroup1 = 0;
+    isTimedGroup1 = true;
+
+    startHourForGroup2 = 14;
+    startMinuteForGroup2 = 0;
+    endHourForGroup2 = 16;
+    endMinuteForGroup2 = 30;
+    isTimedGroup2 = true;
+
+    // 写入定时设置数据到EEPROM
+    writeTimingSettingsToEEPROM();
+}
+
+void loop() {
+    // 在这里可以添加主循环逻辑，比如定时检查、根据定时设置执行相应操作等
+
+    // 例如，可以周期性地（比如每隔一段时间）从EEPROM读取定时设置数据，查看是否符合预期
+    readTimingSettingsFromEEPROM();
+    Serial.println("定时1读取结果：开始小时=" + String(startHourForGroup1) + "，开始分钟=" + String(startMinuteForGroup1) + "，结束小时=" + String(endHourForGroup1) + "，结束分钟=" + String(endMinuteForGroup1) + "，是否定时=" + String(isTimedGroup1));
+    Serial.println("定时2读取结果：开始小时=" + String(startHourForGroup2) + "，开始分钟=" + String(startMinuteForGroup2) + "，结束小时=" + String(endHourForGroup2) + "，结束分钟=" + String(endMinuteForGroup2) + "，是否定时=" + String(isTimedGroup2));
+
+    // 根据实际情况添加适当的延迟，避免过于频繁地读取
+    delay(5000);
+}
+
+/写入逻辑优化
+数据格式化：不再使用复杂的 CRC 校验以及页写入方式，而是将每个定时设置数据简单地格式化为固定长度的字符串（这里假设每个定时数据用 10 个字符表示，前 8 个字符依次为开始小时、分钟、结束小时、分钟，第 9 个字符表示是否定时，格式化为 000000000 或 000000001 这样的形式，可根据实际需求调整长度和格式）。然后分别将定时 1 的数据写入起始地址为 0 的位置，定时 2 的数据写入起始地址为 10 的位置（避免了之前可能因页写入、校验码处理等带来的复杂问题以及潜在错误）。
+读取逻辑优化
+简化解析：按照写入时设定的固定长度和格式，直接从相应地址读取对应长度的数据字符串，然后进行简单的字符串截取和类型转换来解析出各个定时设置参数，减少了因校验、复杂数据结构处理等带来的不确定性和错误可能。/
