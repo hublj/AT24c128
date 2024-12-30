@@ -1,0 +1,69 @@
+// 向EEPROM写入数据的函数
+void writeEEPROM(int address, const char* data) {
+  Wire.beginTransmission(EEPROM_ADDRESS);
+  Wire.write((int)(address >> 8));
+  Wire.write((int)(address & 0xFF));
+  for (uint16_t i = 0; i < strlen(data); i++) {
+    Wire.write(data[i]);
+    delay(5);
+  }
+  Wire.endTransmission();
+}
+
+// 从EEPROM读取数据的函数
+String readEEPROM(int address, int length) {
+  String data = "";
+  Wire.beginTransmission(EEPROM_ADDRESS);
+  Wire.write((int)(address >> 8));
+  Wire.write((int)(address & 0xFF));
+  Wire.endTransmission(false);
+
+  Wire.requestFrom(EEPROM_ADDRESS, length);
+  while (Wire.available()) {
+    char c = Wire.read();
+    data += c;
+  }
+  return data;
+}
+
+// 从EEPROM读取定时设置数据的函数
+void readTimingSettingsFromEEPROM() {
+  // 读取定时1的设置
+  String data = readEEPROM(0, 12);
+  if (data.length() == 12) {
+    startHourForGroup1 = data.substring(0, 2).toInt();
+    startMinuteForGroup1 = data.substring(2, 4).toInt();
+    endHourForGroup1 = data.substring(4, 6).toInt();
+    endMinuteForGroup1 = data.substring(6, 8).toInt();
+    isTimedGroup1 = data.substring(8, 9) == "1";
+  }
+
+  // 读取定时2的设置
+  data = readEEPROM(12, 12);
+  if (data.length() == 12) {
+    startHourForGroup2 = data.substring(0, 2).toInt();
+    startMinuteForGroup2 = data.substring(2, 4).toInt();
+    endHourForGroup2 = data.substring(4, 6).toInt();
+    endMinuteForGroup2 = data.substring(6, 8).toInt();
+    isTimedGroup2 = data.substring(8, 9) == "1";
+  }
+}
+
+// 将定时设置数据写入EEPROM的函数
+void writeTimingSettingsToEEPROM() {
+  // 构建定时1的数据字符串
+  String data = String(startHourForGroup1, DEC) + String(startMinuteForGroup1, DEC) +
+                String(endHourForGroup1, DEC) + String(endMinuteForGroup1, DEC) +
+                (isTimedGroup1? "1" : "0");
+
+  // 写入定时1的数据到EEPROM
+  writeEEPROM(0, data.c_str());
+
+  // 构建定时2的数据字符串
+  data = String(startHourForGroup2, DEC) + String(startMinuteForGroup2, DEC) +
+         String(endHourForGroup2, DEC) + String(endMinuteForGroup2, DEC) +
+         (isTimedGroup2? "1" : "0");
+
+  // 写入定时2的数据到EEPROM
+  writeEEPROM(12, data.c_str());
+}
