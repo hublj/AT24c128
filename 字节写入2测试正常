@@ -1,0 +1,67 @@
+// 向EEPROM写入一个字节数据（添加延迟）
+void writeEEPROM(int address, const char* data) {
+    Wire.beginTransmission(EEPROM_ADDRESS);
+    Wire.write((int)(address >> 8));
+    Wire.write((int)(address & 0xFF));
+    for (uint16_t i = 0; i < strlen(data); i++) {
+        Wire.write(data[i]);
+        delayMicroseconds(5000); // 每字节写入后延迟5毫秒
+    }
+    Wire.endTransmission();
+}
+
+// 从EEPROM读取数据（添加延迟）
+String readEEPROM(int address, int length) {
+    String data = "";
+    Wire.beginTransmission(EEPROM_ADDRESS);
+    Wire.write((int)(address >> 8));
+    Wire.write((int)(address & 0xFF));
+    Wire.endTransmission(false);
+    Wire.requestFrom(EEPROM_ADDRESS, length);
+    while (Wire.available()) {
+        char c = Wire.read();
+        data += c;
+        delayMicroseconds(5000); // 每字节读取后延迟5毫秒
+    }
+    return data;
+}
+
+// 将定时设置数据写入EEPROM（简化的写入逻辑）
+void writeTimingSettingsToEEPROM() {
+    // 构建定时1的数据字符串，格式化为固定长度（假设总长度为10字节，可按需调整）
+    char data1[10];
+    sprintf(data1, "%02d%02d%02d%02d%c", startHourForGroup1, startMinuteForGroup1, endHourForGroup1, endMinuteForGroup1, isTimedGroup1? '1' : '0');
+    writeEEPROM(0, data1);
+
+    // 构建定时2的数据字符串，同样格式化
+    char data2[10];
+    sprintf(data2, "%02d%02d%02d%02d%c", startHourForGroup2, startMinuteForGroup2, endHourForGroup2, endMinuteForGroup2, isTimedGroup2? '1' : '0');
+    writeEEPROM(10, data2);
+
+    Serial.println("定时设置数据已写入存储芯片");
+}
+
+// 从EEPROM读取定时设置数据（简化的读取逻辑）
+void readTimingSettingsFromEEPROM() {
+    // 读取定时1的数据
+    String data1 = readEEPROM(0, 10);
+    if (data1.length() == 10) {
+        // 解析定时1的数据
+        startHourForGroup1 = data1.substring(0, 2).toInt();
+        startMinuteForGroup1 = data1.substring(2, 4).toInt();
+        endHourForGroup1 = data1.substring(4, 6).toInt();
+        endMinuteForGroup1 = data1.substring(6, 8).toInt();
+        isTimedGroup1 = data1.substring(8, 9) == "1";
+    }
+
+    // 读取定时2的数据
+    String data2 = readEEPROM(10, 10);
+    if (data2.length() == 10) {
+        // 解析定时2的数据
+        startHourForGroup2 = data2.substring(0, 2).toInt();
+        startMinuteForGroup2 = data2.substring(2, 4).toInt();
+        endHourForGroup2 = data2.substring(4, 6).toInt();
+        endMinuteForGroup2 = data2.substring(6, 8).toInt();
+        isTimedGroup2 = data2.substring(8, 9) == "1";
+    }
+}
