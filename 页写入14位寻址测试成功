@@ -1,0 +1,119 @@
+// 向EEPROM写入数据的函数，添加写入重试机制和更详细的错误处理
+void writeEEPROM(int address, const char* data, int length) {
+    int maxRetries = 3;  // 最大重试次数
+    for (int retry = 0; retry < maxRetries; retry++) {
+        // 将地址转换为14位
+        uint16_t newAddress = (address & 0x3FFF);
+        Wire.beginTransmission(EEPROM_ADDRESS);
+        Wire.write((int)(newAddress >> 7));  // 传输高7位地址
+        Wire.write((int)(newAddress & 0x7F));  // 传输低7位地址
+        int bytesToWrite = length;
+        if ((newAddress % EEPROM_PAGE_SIZE) + length > EEPROM_PAGE_SIZE) {
+            bytesToWrite = EEPROM_PAGE_SIZE - (newAddress % EEPROM_PAGE_SIZE);
+        }
+        for (int i = 0; i < bytesToWrite; i++) {
+            Wire.write(data[i]);
+        }
+        if (Wire.endTransmission() == 0) {
+            return;  // 写入成功，直接返回
+        }
+        Serial.print("EEPROM写入数据出现错误，地址: ");
+        Serial.println(address);
+        Serial.print("正在重试...重试次数: ");
+        Serial.println(retry + 1);
+        delay(100);  // 重试间隔
+    }
+    Serial.print("多次重试后，EEPROM写入数据仍然失败，地址: ");
+    Serial.println(address);
+}
+
+// 从EEPROM读取数据的函数，添加读取结果判断和错误提示
+String readEEPROM(int address, int length) {
+    String data = "";
+    // 将地址转换为14位
+    uint16_t newAddress = (address & 0x3FFF);
+    Wire.beginTransmission(EEPROM_ADDRESS);
+    Wire.write((int)(newAddress >> 7));  // 传输高7位地址
+    Wire.write((int)(newAddress & 0x7F));  // 传输低7位地址
+    Wire.endTransmission(false);
+    Wire.requestFrom(EEPROM_ADDRESS, length);
+    int receivedBytes = 0;
+    while (Wire.available()) {
+        char c = Wire.read();
+        data += c;
+        receivedBytes++;
+    }
+    if (receivedBytes!= length) {
+        Serial.print("从EEPROM读取数据出现错误，期望读取 ");
+        Serial.print(length);
+        Serial.print(" 字节，实际读取 ");
+        Serial.print(receivedBytes);
+        Serial.print(" 字节，地址: ");
+        Serial.println(address);
+    }
+    return data;
+}
+
+// 从EEPROM读取定时设置数据的函数，添加数据合法性检查和读取前后延迟
+void readTimingSettingsFromEEPROM() {
+    delay(20);  // 读取前增加延迟
+    // 读取定时1的设置
+    String data = readEEPROM(0, 12);
+    if (data.length() == 12) {
+        bool isValid = true;
+        for (int i = 0; i < 8; i++) {
+            if (data[i] < '0' || data[i] > '9') {
+                isValid = false;
+                break;
+            }
+        }
+        if (isValid) {
+            startHourForGroup1 = data.substring(0, 2).toInt();
+            startMinuteForGroup1 = data.substring(2, 4).toInt();
+            endHourForGroup1 = data.substring(4, 6).toInt();
+            endMinuteForGroup1 = data.substring(6, 8).toInt();
+            isTimedGroup1 = data.substring(8, 9) == "1";
+        } else {
+            Serial.println("定时1读取到的数据存在非法字符");
+        }
+    }
+    // 读取定时2的设置
+    data = readEEPROM(12, 12);
+    if (data.length() == 12) {
+        bool isValid = true;
+        for (int i = 0; i < 8; i++) {
+            if (data[i] < '0' || data[i] > '9') {
+                isValid = false;
+                break;
+            }
+        }
+        if (isValid) {
+            startHourForGroup2 = data.substring(0, 2).toInt();
+            startMinuteForGroup2 = data.substring(2, 4).toInt();
+            endHourForGroup2 = data.substring(4, 6).toInt();
+            endMinuteForGroup2 = data.substring(6, 8).toInt();
+            isTimedGroup2 = data.substring(8, 9) == "1";
+        } else {
+            Serial.println("定时2读取到的数据存在非法字符");
+        }
+    }
+    delay(20);  // 读取后增加延迟
+}
+
+// 将定时设置数据写入EEPROM的函数，添加地址范围检查
+void writeTimingSettingsToEEPROM() {
+    if (0 > 0 || 0 + 12 > EEPROM_TOTAL_SIZE) {
+        Serial.println("定时设置数据写入地址超出合理范围");
+        return;
+    }
+    // 构建定时1的数据字符串，确保格式化为固定长度（这里假设总长度12字节，格式如：00000000000，前8位分别为时分时分，最后一位为是否定时标志）
+    char data1[12];
+    sprintf(data1, "%02d%02d%02d%02d%c", startHourForGroup1, startMinuteForGroup1, endHourForGroup1, endMinuteForGroup1, isTimedGroup1? '1' : '0');
+    // 写入定时1的数据到EEPROM
+    writeEEPROM(0, data1, 12);
+    // 构建定时2的数据字符串
+    char data2[12];
+    sprintf(data2, "%02d%02d%02d%02d%c", startHourForGroup2, startMinuteForGroup2, endHourForGroup2, endMinuteForGroup2, isTimedGroup2? '1' : '0');
+    // 写入定时2的数据到EEPROM
+    writeEEPROM(12, data2, 12);
+}
